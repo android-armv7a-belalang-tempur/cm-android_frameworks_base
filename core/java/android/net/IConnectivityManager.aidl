@@ -73,7 +73,7 @@ interface IConnectivityManager
 
     /** Policy control over specific {@link NetworkStateTracker}. */
     void setPolicyDataEnable(int networkType, boolean enabled);
-
+	void setMobileDataEnabled(boolean enabled);
     int tether(String iface);
 
     int untether(String iface);

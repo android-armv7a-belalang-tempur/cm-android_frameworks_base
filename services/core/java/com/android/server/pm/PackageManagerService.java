@@ -84,6 +84,7 @@ import org.xmlpull.v1.XmlSerializer;
 import android.app.ActivityManager;
 import android.app.ActivityManagerNative;
 import android.app.AppGlobals;
+import android.app.AppOpsManager;
 import android.app.IActivityManager;
 import android.app.admin.IDevicePolicyManager;
 import android.app.backup.IBackupManager;
@@ -478,6 +479,8 @@ public class PackageManagerService extends IPackageManager.Stub {
     ComponentName mCustomResolverComponentName;
 
     boolean mResolverReplaced = false;
+
+    private AppOpsManager mAppOps;
 
     // Set of pending broadcasts for aggregating enable/disable of components.
     static class PendingPackageBroadcasts {
@@ -1059,6 +1062,18 @@ public class PackageManagerService extends IPackageManager.Stub {
                                 deleteOld = true;
                             }
 
+                            if (!update && !isSystemApp(res.pkg.applicationInfo)) {
+                                boolean privacyGuard = Secure.getIntForUser(
+                                        mContext.getContentResolver(),
+                                        android.provider.Settings.Secure.PRIVACY_GUARD_DEFAULT,
+                                        0, UserHandle.USER_CURRENT) == 1;
+                                if (privacyGuard) {
+                                    mAppOps.setPrivacyGuardSettingForPackage(
+                                            res.pkg.applicationInfo.uid,
+                                            res.pkg.applicationInfo.packageName, true);
+                                }
+                            }
+
                             // Log current value of "unknown sources" setting
                             EventLog.writeEvent(EventLogTags.UNKNOWN_SOURCES_ENABLED,
                                 getUnknownSourcesSettings());
@@ -1317,6 +1332,8 @@ public class PackageManagerService extends IPackageManager.Stub {
                 ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_PRIVILEGED);
         mSettings.addSharedUserLPw("android.uid.shell", SHELL_UID,
                 ApplicationInfo.FLAG_SYSTEM|ApplicationInfo.FLAG_PRIVILEGED);
+
+        mAppOps = (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
 
         String separateProcesses = SystemProperties.get("debug.separate_processes");
         if (separateProcesses != null && separateProcesses.length() > 0) {
@@ -7173,8 +7190,20 @@ public class PackageManagerService extends IPackageManager.Stub {
                 int userId) {
             if (!sUserManager.exists(userId)) return null;
             mFlags = flags;
-            return super.queryIntent(intent, resolvedType,
+            List<ResolveInfo> list = super.queryIntent(intent, resolvedType,
                     (flags & PackageManager.MATCH_DEFAULT_ONLY) != 0, userId);
+            // Remove protected Application components
+            int callingUid = Binder.getCallingUid();
+            if (callingUid != Process.SYSTEM_UID &&
+                    (getFlagsForUid(callingUid) & ApplicationInfo.FLAG_SYSTEM) == 0) {
+               Iterator<ResolveInfo> itr = list.iterator();
+                while (itr.hasNext()) {
+                    if (itr.next().activityInfo.applicationInfo.protect) {
+                        itr.remove();
+                    }
+                }
+            }
+            return list;
         }
 
         public List<ResolveInfo> queryIntentForPackage(Intent intent, String resolvedType,
@@ -11107,8 +11136,8 @@ public class PackageManagerService extends IPackageManager.Stub {
                         true,  //notLaunched
                         false, //hidden
                         null, null, null,
-                        false // blockUninstall
-                        );
+                        false, // blockUninstall
+                        null, null);
                 if (!isSystemApp(ps)) {
                     if (ps.isAnyInstalled(sUserManager.getUserIds())) {
                         // Other user still have this package installed, so all
@@ -13300,6 +13329,69 @@ public class PackageManagerService extends IPackageManager.Stub {
     @Deprecated
     public boolean isPermissionEnforced(String permission) {
         return true;
+    }
+
+    @Override
+    public void setComponentProtectedSetting(ComponentName componentName, boolean newState,
+            int userId) {
+        enforceCrossUserPermission(Binder.getCallingUid(), userId, false, false, "set protected");
+
+        String packageName = componentName.getPackageName();
+        String className = componentName.getClassName();
+
+        PackageSetting pkgSetting;
+        ArrayList<String> components;
+
+        synchronized (mPackages) {
+            pkgSetting = mSettings.mPackages.get(packageName);
+
+            if (pkgSetting == null) {
+                if (className == null) {
+                    throw new IllegalArgumentException(
+                            "Unknown package: " + packageName);
+                }
+                throw new IllegalArgumentException(
+                        "Unknown component: " + packageName
+                                + "/" + className);
+            }
+
+            //Protection levels must be applied at the Component Level!
+            if (className == null) {
+                throw new IllegalArgumentException(
+                        "Must specify Component Class name."
+                );
+            } else {
+                PackageParser.Package pkg = pkgSetting.pkg;
+                if (pkg == null || !pkg.hasComponentClassName(className)) {
+                    if (pkg.applicationInfo.targetSdkVersion >= Build.VERSION_CODES.JELLY_BEAN) {
+                        throw new IllegalArgumentException("Component class " + className
+                                + " does not exist in " + packageName);
+                    } else {
+                        Slog.w(TAG, "Failed setComponentProtectedSetting: component class "
+                                + className + " does not exist in " + packageName);
+                    }
+                }
+
+                pkgSetting.protectComponentLPw(className, newState, userId);
+                mSettings.writePackageRestrictionsLPr(userId);
+
+                components = mPendingBroadcasts.get(userId, packageName);
+                final boolean newPackage = components == null;
+                if (newPackage) {
+                    components = new ArrayList<String>();
+                }
+                if (!components.contains(className)) {
+                    components.add(className);
+                }
+            }
+        }
+
+        long callingId = Binder.clearCallingIdentity();
+        try {
+            int packageUid = UserHandle.getUid(userId, pkgSetting.appId);
+        } finally {
+            Binder.restoreCallingIdentity(callingId);
+        }
     }
 
     @Override
