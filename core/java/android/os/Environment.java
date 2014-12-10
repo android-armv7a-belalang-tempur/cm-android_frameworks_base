@@ -71,32 +71,32 @@ public class Environment {
     private static UserEnvironment sCurrentUser;
     private static boolean sUserRequired;
 
-	private static final Object sLock = new Object();
-	@GuardedBy("sLock")
+    private static final Object sLock = new Object();
+    @GuardedBy("sLock")
 
-	private static volatile StorageVolume sNoEmulatedVolume;
+    private static volatile StorageVolume sNoEmulatedVolume;
 
     static {
         initForCurrentUser();
     }
 
-	private static StorageVolume getNoEmulatedVolume() {
-		if (sNoEmulatedVolume == null) {
-			synchronized (sLock) {
-				if (sNoEmulatedVolume == null) {
-					try {
-						IMountService mountService = IMountService.Stub.asInterface(ServiceManager
-								.getService("mount"));
-						final StorageVolume[] volumes = mountService.getVolumeList();
-						sNoEmulatedVolume = StorageManager.getNoEmulatedVolume(volumes);
-					} catch (Exception e) {
-						Log.e(TAG, "couldn't talk to MountService", e);
-					}
-				}
-			}
-		}
-		return sNoEmulatedVolume;
-	}
+    private static StorageVolume getNoEmulatedVolume() {
+        if (sNoEmulatedVolume == null) {
+            synchronized (sLock) {
+                if (sNoEmulatedVolume == null) {
+                    try {
+                        IMountService mountService = IMountService.Stub.asInterface(ServiceManager
+                                .getService("mount"));
+                        final StorageVolume[] volumes = mountService.getVolumeList();
+                        sNoEmulatedVolume = StorageManager.getNoEmulatedVolume(volumes);
+                    } catch (Exception e) {
+                        Log.e(TAG, "couldn't talk to MountService", e);
+                    }
+                }
+            }
+        }
+        return sNoEmulatedVolume;
+    }
 
     /** {@hide} */
     public static void initForCurrentUser() {
@@ -175,11 +175,11 @@ public class Environment {
             return mExternalDirsForApp[0];
         }
 
-		/** {@hide} */
-		public File getSecondaryStorageDirectory() {
-			return (mExternalDirsForApp.length > 1)
-					? mExternalDirsForApp[1] : mExternalDirsForApp[0];
-		}
+        /** {@hide} */
+        public File getSecondaryStorageDirectory() {
+            return (mExternalDirsForApp.length > 1)
+                    ? mExternalDirsForApp[1] : mExternalDirsForApp[0];
+        }
 
         @Deprecated
         public File getExternalStoragePublicDirectory(String type) {
@@ -427,11 +427,11 @@ public class Environment {
         return sCurrentUser.getExternalStorageDirectory();
     }
 
-	/** {@hide} */
-	public static File getSecondaryStorageDirectory() {
-		throwIfUserRequired();
-		return sCurrentUser.getSecondaryStorageDirectory();
-	}
+    /** {@hide} */
+    public static File getSecondaryStorageDirectory() {
+        throwIfUserRequired();
+        return sCurrentUser.getSecondaryStorageDirectory();
+    }
 
     /** {@hide} */
     public static File getLegacyExternalStorageDirectory() {
@@ -746,13 +746,13 @@ public class Environment {
         return getExternalStorageState(path);
     }
 
-   /**
-	* @hide
-	*/
-	public static String getSecondaryStorageState() {
-		final File externalDir = sCurrentUser.getExternalDirsForApp()[1];
-		return getStorageState(externalDir);
-	}
+    /**
+     * @hide
+     */
+    public static String getSecondaryStorageState() {
+        final File externalDir = sCurrentUser.getExternalDirsForApp()[1];
+        return getStorageState(externalDir);
+    }
 
     /**
      * Returns the current state of the storage device that provides the given
@@ -791,11 +791,11 @@ public class Environment {
         return isExternalStorageRemovable(externalDir);
     }
 
-	/** {@hide} */
-	public static boolean isNoEmulatedStorageExist() {
-		final StorageVolume volume = getNoEmulatedVolume();
-		return (volume != null);
-	}
+    /** {@hide} */
+    public static boolean isNoEmulatedStorageExist() {
+        final StorageVolume volume = getNoEmulatedVolume();
+        return (volume != null);
+    }
 
     /**
      * Returns whether the storage device that provides the given path is

@@ -377,7 +377,7 @@ public class PackageHelper {
             checkBoth = false;
         }
 
-		final boolean noemulated = Environment.isNoEmulatedStorageExist();
+        final boolean noemulated = Environment.isNoEmulatedStorageExist();
         final StorageManager storage = StorageManager.from(context);
 
         boolean fitsOnInternal = false;
